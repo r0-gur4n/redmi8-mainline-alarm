@@ -8,5 +8,7 @@
 Module.symvers
 modules.order
 *.img
+# the minimal DTBO is source, not a build artefact
+!firmware/dtbo/dtbo-xiaomi-olive.img
 __pycache__/
 *.pyc

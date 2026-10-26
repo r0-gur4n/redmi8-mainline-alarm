@@ -127,5 +127,8 @@ sparse_image "$RAW" "$OUT/userdata.img"
 rm -f "$RAW"
 
 WORK="$WORK/lk2nd" OUT="$OUT" "$REPO/image/build-lk2nd.sh"
+# Minimal DTBO for the stock bootloader: with the stock overlay it refuses
+# to start lk2nd on SDM439 and drops back to fastboot.
+install -m 644 "$REPO/firmware/dtbo/dtbo-xiaomi-olive.img" "$OUT/dtbo.img"
 checksums "$OUT"
 log "done: flash with scripts/flash/flash.py (docs/03-installing.md)"

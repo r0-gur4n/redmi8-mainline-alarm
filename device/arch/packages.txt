@@ -1,0 +1,88 @@
+# Redmi 8 (Arch): packages on top of the ALARM aarch64 base tarball.
+# Installed with `pacman -S --needed --noconfirm`; dependencies are resolved
+# by pacman. The base tarball already provides base, systemd, pacman and
+# mkinitcpio. Keep this list to what the phone needs: every megabyte is eMMC.
+# Apps that need unsupported hardware (camera, audio) are deliberately absent.
+
+# system and tools
+sudo
+openssh
+networkmanager
+wpa_supplicant
+iw
+wireless-regdb
+curl
+wget
+rsync
+bash-completion
+htop
+less
+nano
+python
+e2fsprogs
+dosfstools
+cloud-guest-utils
+zstd
+zram-generator
+dconf
+mkinitcpio
+desktop-file-utils
+xdg-utils
+
+# graphics and audio
+mesa
+mesa-utils
+pipewire
+pipewire-pulse
+wireplumber
+upower
+polkit
+gnome-keyring
+
+# phone shell: Phosh (pulls gnome-session, gnome-shell, phoc, mutter, ...)
+gdm
+phosh
+phosh-mobile-settings
+gnome-session
+gnome-shell
+squeekboard
+gnome-control-center
+firefox
+gnome-console
+nautilus
+gnome-text-editor
+xdg-desktop-portal-gnome
+xdg-desktop-portal-gtk
+polkit-gnome
+adwaita-icon-theme
+gnome-backgrounds
+ttf-dejavu
+noto-fonts-emoji
+
+# basic mobile apps: the Phosh app set that works on this hardware. Calls and
+# Chatty are part of the standard phone UI, but need the modem, which is not
+# supported yet; they open without it. Maps and Weather only need the network,
+# not the missing GPS.
+gnome-calls
+chatty
+gnome-contacts
+gnome-calendar
+gnome-weather
+gnome-maps
+gnome-clocks
+gnome-calculator
+loupe
+papers
+file-roller
+gnome-characters
+gnome-disk-utility
+gnome-system-monitor
+
+# firmware: GPU microcode (a530_pfp/a530_pm4) and the Qualcomm firmware set.
+# The phone's own Wi-Fi, ADSP and video firmware is linked from its Android
+# partitions at boot by msm-firmware-loader. The full linux-firmware
+# metapackage would add ~1.7 GiB of firmware for other machines.
+linux-firmware-qcom
+
+# initramfs: a full busybox for the USB rescue shell (telnetd, ip)
+busybox

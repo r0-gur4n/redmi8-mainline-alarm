@@ -1,0 +1,62 @@
+#!/bin/sh
+# Make Phosh work with ALARM's phoc package.
+#
+# Phoc normally builds and links a wlroots subproject that carries
+#   subprojects/packagefiles/wlroots/0001-Revert-layer-shell-error-on-0-dimension-without-anch.patch
+# ALARM's phoc 0.57.0-2 links the system wlroots0.20 instead, without that
+# patch. Phosh's "phosh home" layer surface is size 0x0 anchored to the bottom,
+# left and right edges; wlroots rejects it with
+#   zwlr_layer_surface_v1: error 1: height 0 requested without setting top and
+#   bottom anchors
+# and phosh exits with status 1 right after "Phosh ready".
+#
+# Revert the height check the same way phoc's patch does: the error block at
+# 0xbc7a8 starts with "and w2, w0, #3"; replace it with a branch back to the
+# continuation at 0xbc768 ("b .-0x40", 0x17fffff0). Everything after it (the
+# exclusive-edge check) keeps running unchanged.
+#
+# The instruction and offset are those of wlroots0.20 0.20.2-1 (the version
+# the image is verified with). The checksums make this fail loudly instead of
+# patching something unknown when ALARM updates the package; see
+# docs/07-arch.md for what to do then.
+#
+# Run by the image build (device/arch/configure.sh) and by the pacman hook
+# etc/pacman.d/hooks/olive-wlroots-layer-shell.hook after wlroots0.20 is
+# installed, upgraded or downgraded.
+set -eu
+
+LIB=/usr/lib/libwlroots-0.20.so
+OFFSET=772008 # 0xbc7a8
+SUM_UNPATCHED=5e49d34a8221460b18bb470363b4e99ac029d585451e6aee149f8d3e31bc6c61
+SUM_PATCHED=a212a0cac5bb0c61df2998db800d2d2300008e85d0af8ebbb41f78b123ba6863
+
+if [ ! -f "$LIB" ]; then
+	echo "olive-wlroots-layer-shell-fix: $LIB is not installed" >&2
+	exit 1
+fi
+
+sum=$(sha256sum "$LIB" | cut -d' ' -f1)
+case $sum in
+	"$SUM_PATCHED")
+		exit 0
+		;;
+	"$SUM_UNPATCHED")
+		;;
+	*)
+		echo "olive-wlroots-layer-shell-fix: unknown $LIB (sha256 $sum)." >&2
+		echo "wlroots0.20 changed: re-check the phoc layer-shell patch (docs/07-arch.md)." >&2
+		exit 1
+		;;
+esac
+
+if [ "$(dd if="$LIB" bs=1 skip="$OFFSET" count=4 status=none | od -An -tx1 | tr -d ' \n')" != 02040012 ]; then
+	echo "olive-wlroots-layer-shell-fix: unexpected code at $OFFSET" >&2
+	exit 1
+fi
+
+printf '\360\377\377\027' | dd of="$LIB" bs=1 seek="$OFFSET" conv=notrunc status=none
+
+if [ "$(sha256sum "$LIB" | cut -d' ' -f1)" != "$SUM_PATCHED" ]; then
+	echo "olive-wlroots-layer-shell-fix: patched library has an unexpected checksum" >&2
+	exit 1
+fi

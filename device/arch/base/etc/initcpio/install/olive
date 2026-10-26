@@ -1,0 +1,20 @@
+#!/bin/bash
+# Redmi 8 (Arch): mkinitcpio install hook for the olive runtime hook.
+build() {
+    # losetup for the disk image on userdata; full busybox for telnetd and
+    # ip (mkinitcpio's own busybox has neither).
+    add_binary /usr/bin/losetup
+    add_binary /usr/bin/busybox /bin/busybox-full
+    add_module libcomposite
+    add_module usb_f_ncm
+    add_file /etc/initcpio/olive-rescue-shell /olive-rescue 755
+    add_runscript
+}
+
+help() {
+    cat <<HELPEOF
+This hook attaches the Redmi 8 disk image on the userdata partition as a
+loop device, brings up the USB NCM rescue shell before root is mounted and
+counts unconfirmed boots. It needs losetup (util-linux) and busybox.
+HELPEOF
+}

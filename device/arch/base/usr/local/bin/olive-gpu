@@ -1,0 +1,31 @@
+#!/bin/sh
+# Load the Adreno 505 as a render-only DRM device.
+#
+# No MESA_LOADER_DRIVER_OVERRIDE: Mesa uses msm on the Adreno render node for
+# both Phoc and its clients, while wlroots' DRM backend allocates the scanout
+# buffers on simpledrm with its dumb-buffer allocator. Exporting kmsro to the
+# whole session also applies it to clients, whose dmabuf exports then allocate
+# dumb buffers on simpledrm; that fails with EACCES for a non-master fd and
+# crashes GTK 4.24 in dri2_query_image.
+set -u
+log() { echo "olive-gpu: $*" > /dev/kmsg; }
+
+# An older image may have left this behind; the Arch session must not have it.
+rm -f /run/environment.d/90-olive-gpu.conf
+
+# msm stays off the udev autoload list; with the display subsystem disabled in
+# the device tree and separate_gpu_kms=1 it only binds the GPU.
+timeout 45 modprobe msm separate_gpu_kms=1 || { log "msm load failed"; exit 0; }
+
+for i in $(seq 1 20); do
+    for node in /dev/dri/renderD*; do
+        [ -e "$node" ] || continue
+        if [ "$(basename "$(readlink -f /sys/class/drm/$(basename "$node")/device/driver)")" = adreno ]; then
+            log "Adreno 505 ready at $node"
+            exit 0
+        fi
+    done
+    sleep 0.5
+done
+log "no Adreno render node"
+exit 0

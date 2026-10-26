@@ -23,17 +23,37 @@ Three independent faults, all in `kernel/patches/`:
    width 0, so the divider was ignored. Fix: width 4 in `gcc-msm8917.c`
    (`09-fix-gpll3-width.py`); measured 450 MHz.
 
-### How GNOME uses it
+### How the session uses it
 
 The msm display pipeline does not bring the panel up (see known issues), so
 msm is loaded **GPU-only**: the MDSS node is disabled in the DT and
 `olive-gpu.service` runs `modprobe msm separate_gpu_kms=1`. msm then offers
-a render node (`/dev/dri/renderD128`) and no display. Only when that node is
-there does the service write `MESA_LOADER_DRIVER_OVERRIDE=kmsro` to
-`/run/environment.d/`: Mesa renders with freedreno and shares buffers with the
-display device, which is `simpledrm` on the bootloader's framebuffer. If msm
-fails to load, nothing is written and GNOME falls back to software rendering
-instead of a black screen.
+a render node (`/dev/dri/renderD128`) and no display; the display device is
+`simpledrm` on the bootloader's framebuffer. The compositor renders with the
+Adreno and the framebuffer shows the result, so rendering and scanout happen
+on different devices.
+
+The two images configure this differently:
+
+* **Ubuntu** (`device/base/usr/local/bin/olive-gpu`): when the Adreno render
+  node appears, the service writes `MESA_LOADER_DRIVER_OVERRIDE=kmsro` to
+  `/run/environment.d/`. This is the configuration the Ubuntu image was
+  brought up with: Mesa's `kmsro` driver pairs the Adreno render node with the
+  display device and shares buffers between them.
+* **Arch** (`device/arch/base/usr/local/bin/olive-gpu`): no override. Mesa
+  uses `msm` on the Adreno render node for the compositor and clients, and
+  wlroots' DRM backend allocates the scanout buffers on `simpledrm` with its
+  dumb-buffer allocator, then renders into them with the GPU.
+
+The override is session-wide, so it also applies to client applications. On
+this port a client forced to `kmsro` exports dmabufs through `simpledrm`; the
+dumb-buffer allocation fails because the client is not DRM master
+(`DRM_IOCTL_MODE_CREATE_DUMB failed: Permission denied`) and GTK 4.24 crashes
+in `dri2_query_image` while attaching the failed export. That is why the Arch
+image does not set it: clients must stay on `msm` for the render node, and
+only the compositor has to deal with the display device. If msm fails to
+load, no render node appears and the compositor falls back to software
+rendering instead of a black screen.
 
 `msm` is blacklisted for autoloading (`/etc/modprobe.d/olive-staged.conf`)
 and must never be unloaded: `rmmod msm` crashes the kernel.
@@ -60,6 +80,13 @@ loads the RAM firmware (`ilitek/olive-ili9881h-c3i-0x04.ili`) at probe,
 enables the IRQ and reports 10-finger multitouch. Because the bootloader's framebuffer keeps the panel running,
 the touch works. The DT's touch → panel link is removed
 (`2-dtb-fbmode.py`), otherwise the device link would defer the probe forever.
+
+On Arch the panel stays on the bootloader's `simpledrm` framebuffer, and Phoc
+calls that output `Unknown-1`. Phoc's builtin-output detection does not
+recognize the name, so it would leave the touch device unmapped and the touch
+would not follow Phosh's rotation. The Arch image patches Phoc's builtin
+prefix, not this driver or the device tree; see
+[`07-arch.md`](07-arch.md#touch-and-the-simpledrm-output).
 
 ## Battery and charger: `olive-power` (own, read-only)
 

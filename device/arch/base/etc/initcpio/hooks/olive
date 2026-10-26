@@ -1,0 +1,55 @@
+#!/usr/bin/ash
+# Redmi 8 (Arch): mkinitcpio runtime hook.
+#
+# run_earlyhook (after udev has started, before any modules from MODULES are
+# loaded): bring up the USB NCM gadget and a telnet rescue shell. The gadget
+# is kept across switch_root; olive-net.service reuses it, so the control link
+# never has to be disconnected.
+#
+# run_hook: attach the disk image on the userdata partition as a loop device
+# with partitions, so root=UUID=... can be resolved by the block layer.
+#
+# run_latehook (real root mounted on /sysroot): count the boot. After three
+# boots that were never confirmed by olive-autoconfirm.timer, stop here with
+# the USB rescue shell up; `touch /tmp/go` continues.
+
+run_earlyhook() {
+    modprobe -q libcomposite
+    modprobe -q usb_f_ncm
+    mkdir -p /sys/kernel/config
+    mount -t configfs configfs /sys/kernel/config 2>/dev/null || true
+    mkdir -p /tmp
+    grep -q ' /tmp ' /proc/mounts || mount -t tmpfs tmpfs /tmp
+    /bin/busybox-full sh /olive-rescue
+}
+
+run_hook() {
+    local part=/dev/disk/by-partlabel/userdata i=0
+    msg "Attaching the userdata disk image"
+    while [ ! -e "$part" ] && [ "$i" -lt 120 ]; do
+        sleep 1
+        i=$((i + 1))
+    done
+    if [ ! -e "$part" ]; then
+        err "OLIVE: no userdata partition"
+        return 1
+    fi
+    losetup -j "$part" | grep -q . || losetup -P -f "$part" ||
+        err "OLIVE: cannot attach $part as a loop device"
+    udevadm settle
+}
+
+run_latehook() {
+    local state=/sysroot/var/lib/olive count
+    mkdir -p "$state" 2>/dev/null
+    count=$(cat "$state/bootcount" 2>/dev/null)
+    case "$count" in ''|*[!0-9]*) count=0 ;; esac
+    count=$((count + 1))
+    echo "$count" > "$state/bootcount" 2>/dev/null
+    sync
+    if [ "$count" -ge 3 ]; then
+        echo "OLIVE: $count boots without confirmation; waiting in the USB rescue shell (telnet 169.254.66.1, then touch /tmp/go)" > /dev/kmsg
+        while [ ! -e /tmp/go ]; do sleep 1; done
+    fi
+    /bin/busybox-full killall telnetd 2>/dev/null || true
+}

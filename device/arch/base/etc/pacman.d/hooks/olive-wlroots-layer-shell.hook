@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = wlroots0.20
+
+[Action]
+Description = Applying the Phosh fixed-size layer-shell quirk to libwlroots...
+When = PostTransaction
+Exec = /usr/local/sbin/olive-wlroots-layer-shell-fix

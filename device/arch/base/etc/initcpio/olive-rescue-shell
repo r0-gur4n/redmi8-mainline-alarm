@@ -1,0 +1,42 @@
+#!/bin/sh
+# Redmi 8 (Arch): USB network plus telnet rescue shell, run from the
+# initramfs before the root filesystem is looked for. Reachable on the USB
+# cable only, never over Wi-Fi:
+#   telnet 169.254.66.1
+# The gadget ("g1", NCM, interface usb0) is kept after switch_root; the
+# running system reuses it (olive-net.service).
+BB=/bin/busybox-full
+G=/sys/kernel/config/usb_gadget/g1
+
+if [ ! -d "$G" ]; then
+    mkdir -p "$G/strings/0x409" "$G/configs/c.1/strings/0x409" "$G/functions/ncm.usb0"
+    echo 0x18d1 > "$G/idVendor"
+    echo 0xd001 > "$G/idProduct"
+    echo "Xiaomi" > "$G/strings/0x409/manufacturer"
+    echo "Redmi 8 (Arch Linux ARM)" > "$G/strings/0x409/product"
+    echo "NCM" > "$G/configs/c.1/strings/0x409/configuration"
+    ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/"
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        udc=$(ls /sys/class/udc 2>/dev/null | head -n1)
+        [ -n "$udc" ] && break
+        sleep 0.5
+    done
+    [ -n "$udc" ] && echo "$udc" > "$G/UDC"
+fi
+
+# The NCM function creates usb0 when the gadget is bound; wait briefly for it.
+i=0
+while [ ! -e /sys/class/net/usb0 ] && [ "$i" -lt 20 ]; do
+    sleep 0.25
+    i=$((i + 1))
+done
+$BB ip link set usb0 up 2>/dev/null
+$BB ip addr add 169.254.66.1/16 dev usb0 2>/dev/null
+$BB ip addr add 172.16.43.1/24 dev usb0 2>/dev/null
+# telnetd needs a pty, and the initramfs does not mount devpts by default.
+mkdir -p /dev/pts
+grep -q ' /dev/pts ' /proc/mounts || \
+    mount -t devpts devpts /dev/pts -o nosuid,noexec,mode=0620,ptmxmode=0666 2>/dev/null || true
+$BB telnetd -b 169.254.66.1:23 -l /bin/sh
+echo "OLIVE: USB rescue shell on 169.254.66.1:23" > /dev/kmsg
+exit 0

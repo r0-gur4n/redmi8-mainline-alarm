@@ -11,6 +11,10 @@ sudo extras/install.sh phone-ui         # install one
 sudo extras/install.sh phone-ui --remove
 ```
 
+`extras/install.sh` installs packages with `apt`, so the extras apply to the
+Ubuntu image only; the Arch Linux ARM + Phosh image
+([07-arch.md](../docs/07-arch.md)) ships none of them.
+
 | Feature | What it does |
 |---|---|
 | [phone-ui](phone-ui/) | top bar clear of the notch and rounded corners, windows open maximized, dark theme, dock favourites |

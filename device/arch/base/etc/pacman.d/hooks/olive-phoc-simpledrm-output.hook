@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = phoc
+
+[Action]
+Description = Mapping Phoc's simpledrm output for touch rotation...
+When = PostTransaction
+Exec = /usr/local/sbin/olive-phoc-simpledrm-output-fix

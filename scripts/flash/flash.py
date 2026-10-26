@@ -1,25 +1,27 @@
 #!/usr/bin/env python3
-"""Flash Ubuntu onto a Redmi 8 (olive) from Windows or Linux.
+"""Flash a Linux image (Ubuntu or Arch Linux ARM) onto a Redmi 8 (olive).
 
     python scripts/flash/flash.py                 # checks only, writes nothing
-    python scripts/flash/flash.py --flash         # userdata + boot (lk2nd)
+    python scripts/flash/flash.py --flash         # dtbo + userdata + boot
     python scripts/flash/flash.py --flash --reboot
 
 The phone must be in the STOCK fastboot mode (power off, then hold
 Volume-Down + Power) with an unlocked bootloader. What gets written, from
-dist/image/ (built by image/build-image.sh):
+dist/image/ (built by image/build-image.sh or image/arch/build-image.sh):
 
-    userdata  userdata.img   (Android sparse, the whole Ubuntu system)
+    dtbo      dtbo.img       (minimal DTBO: without it the stock ABL
+                              refuses to boot lk2nd and shows the Mi bunny)
+    userdata  userdata.img   (Android sparse, the whole Linux system)
     boot      lk2nd.img      (lk2nd, boots extlinux)
 
 !! userdata is the whole Android data partition: everything on it is gone.
-   Android itself (system, vendor, modem, persist) is not touched, and the
-   stock boot image can be flashed back to return to Android.
+   Android itself (system, vendor, modem, persist) is not touched. Going back
+   to Android needs the stock boot *and* dtbo images from a stock ROM.
 
 Before anything is written the script checks: the images against
 SHA256SUMS, the sparse structure, that the device says product=olive, unlocked=yes and is the
-stock bootloader (kernel=lk), the battery, and that both images fit their
-partitions. It never reboots after a failed write.
+stock bootloader (kernel=lk), the battery, and that every image fits its
+partition. It never reboots after a failed write.
 """
 import argparse
 import hashlib
@@ -85,19 +87,21 @@ def main():
     base = [fastboot] + (['-s', args.serial] if args.serial else [])
     image = args.images / 'userdata.img'
     lk2nd = args.images / 'lk2nd.img'
+    dtbo = args.images / 'dtbo.img'
     listing = args.images / 'SHA256SUMS'
     if not listing.is_file():
-        raise SystemExit(f'{listing} missing - build the images first (image/build-image.sh)')
+        raise SystemExit(f'{listing} missing - build the images first (image/build-image.sh or image/arch/build-image.sh)')
     sums = {}
     for line in listing.read_text().splitlines():
         digest, name = line.split(None, 1)
         sums[name.lstrip('*')] = digest
-    for path in (image, lk2nd):
+    for path in (dtbo, image, lk2nd):
         if not path.is_file():
             raise SystemExit(f'{path} missing')
         if sha256(path) != sums.get(path.name):
             raise SystemExit(f'{path.name}: checksum MISMATCH - build or copy it again')
     expanded = sparse_size(image)
+    print(f'dtbo    {dtbo.name} ok, {dtbo.stat().st_size} bytes')
     print(f'image   {image.name} ok, {expanded / 2**30:.2f} GiB expanded')
     print(f'boot    {lk2nd.name} ok')
 
@@ -114,7 +118,8 @@ def main():
         return m.group(1).strip()
 
     v = {k: getvar(k) for k in ('product', 'unlocked', 'kernel', 'battery-voltage',
-                                'partition-size:boot', 'partition-size:userdata')}
+                                'partition-size:dtbo', 'partition-size:boot',
+                                'partition-size:userdata')}
     print('device  ' + ', '.join(f'{k}={v[k]}' for k in v))
     if v['product'] != 'olive':
         raise SystemExit('this is not a Redmi 8 (olive)')
@@ -131,12 +136,14 @@ def main():
         raise SystemExit('image larger than userdata')
     if lk2nd.stat().st_size > int(v['partition-size:boot'], 16):
         raise SystemExit('lk2nd larger than boot')
+    if dtbo.stat().st_size > int(v['partition-size:dtbo'], 16):
+        raise SystemExit('dtbo larger than the dtbo partition')
     print('checks  passed')
     if not args.flash:
         print('\nnothing written. Run again with --flash to install.')
         return 0
 
-    for partition, path in (('userdata', image), ('boot', lk2nd)):
+    for partition, path in (('dtbo', dtbo), ('userdata', image), ('boot', lk2nd)):
         print(f'\n== flashing {partition}', flush=True)
         # -S 256M: the stock bootloader's download buffer; fastboot re-sparses.
         if subprocess.call(base + ['-S', '256M', 'flash', partition, str(path)]) != 0:
@@ -146,7 +153,7 @@ def main():
     if args.reboot:
         subprocess.call(base + ['reboot'])
         print('rebooting: the first boot grows the root filesystem to the whole '
-              'partition, then GNOME comes up.')
+              'partition, then the desktop comes up.')
     else:
         print('reboot with:  fastboot reboot')
     return 0

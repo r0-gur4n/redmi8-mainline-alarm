@@ -4,6 +4,12 @@
 while :; do
     sleep 30
     ip -4 -o addr show usb0 | grep -q '169.254.66.1/16' || /usr/local/bin/olive-net
-    systemctl is-active --quiet ssh.socket || systemctl is-active --quiet ssh.service ||
-        systemctl --no-block start ssh.socket
+    # Arch calls it sshd.service/sshd.socket, Ubuntu ssh.service/ssh.socket.
+    if ! systemctl is-active --quiet ssh.socket &&
+        ! systemctl is-active --quiet sshd.socket &&
+        ! systemctl is-active --quiet ssh.service &&
+        ! systemctl is-active --quiet sshd.service; then
+        systemctl --no-block start sshd.service 2>/dev/null ||
+            systemctl --no-block start ssh.socket
+    fi
 done

@@ -27,7 +27,21 @@ done
 mkdir -p "$WORK"
 if [ ! -f "$SRC/.olive-patched" ]; then
 	rm -rf "$SRC"
-	git clone --depth 1 --branch v7.1.3-r1 https://github.com/msm89x7-mainline/linux "$SRC"
+	mkdir -p "$SRC"
+	# GitHub's git endpoint is unreachable from some networks (connection
+	# reset); the codeload tarball is the same tree. KERNEL_TARBALL uses an
+	# already downloaded one.
+	if [ -n "${KERNEL_TARBALL:-}" ]; then
+		tar -xzf "$KERNEL_TARBALL" -C "$SRC" --strip-components=1
+	elif ! git clone --depth 1 --branch v7.1.3-r1 \
+		https://github.com/msm89x7-mainline/linux "$SRC"; then
+		rm -rf "$SRC"
+		mkdir -p "$SRC"
+		curl -fL --retry 3 \
+			https://codeload.github.com/msm89x7-mainline/linux/tar.gz/refs/tags/v7.1.3-r1 \
+			-o "$WORK/linux-v7.1.3-r1.tar.gz"
+		tar -xzf "$WORK/linux-v7.1.3-r1.tar.gz" -C "$SRC" --strip-components=1
+	fi
 	"$REPO/kernel/patches/apply-all.sh" "$SRC"
 	touch "$SRC/.olive-patched"
 fi
