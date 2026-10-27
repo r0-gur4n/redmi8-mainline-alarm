@@ -57,8 +57,8 @@ P.S.: Actually, brightness *could be* fixed when I did troubleshooting on my uni
 ---
 ## Future of the project
 
-Q: Will I continue working on this?
-I don't know for sure, it may be abandoned in favor of other projects, due to laziness/lost of interest, due to no Internet access, or any other reason. If I won't help you, you can always fork this project.
+Q: Will I continue working on this?<br>
+A: I don't know for sure, it may be abandoned in favor of other projects, due to laziness/lost of interest, due to no Internet access, or any other reason. If I won't help you, you can always fork this project.
 
 ---
 ## Credits
