@@ -4,6 +4,8 @@
 |---|---|---|
 | `firmware/qcom/sdm439/xiaomi/olive/a506_zap.*` | Adreno zap shader from the stock `vendor` partition (MIUI 12, `/vendor/firmware/a506_zap.*`) | Qualcomm proprietary, redistributed as found on the device |
 | `firmware/ilitek/olive-ili9881h-c3i-0x04.ili` | ILITEK ILI9881H touch RAM firmware for the C3I/Tianma panel, converted from the vendor kernel's `C3I_TIANMA_6217_LongH_V0x04.ili` | ILITEK proprietary |
+| `firmware/dtbo/dtbo-xiaomi-olive.img` | Minimal DTBO from [barni2000/dtbo-lk2nd](https://github.com/barni2000/dtbo-lk2nd) release `v2025.12.21`; only a `qcom,board-id` fixup | No license declared in the upstream repository |
+| `device/arch/base/usr/local/sbin/olive-amp-enable` (AW87519 register sequence only) | Extracted from the stock vendor `aw87519_spk.bin`; `PAGAIN` raised from `0x0c` to `0x12` | AWINIC proprietary |
 | `kernel/downstream-reference/` | Xiaomi/LineageOS `android_kernel_xiaomi_sdm439` (4.9) and the stock device tree, for reference only | GPL-2.0 (sources), device tree as published by Xiaomi |
 | `kernel/patches/sdm439-12nm/` | `dsi_phy_12nm.c` and neighbours from the linux-msm tree at `ce300c988d76` | GPL-2.0-only |
 | `kernel/patches/src/ili9881h-tddi.c`, `kernel/modules/ili9881h-tddi-fb.c`, `ili9881h-ram-loader.h` | written for this port; the wire protocol follows ILITEK's GPL-2.0 vendor driver (`drivers/input/touchscreen/ili9881h/`, © 2011 ILI Technology Corp.) | GPL-2.0-only |
@@ -14,4 +16,4 @@
 | `wcnss.*` Wi-Fi firmware and `qcom/a530_*` GPU microcode on the phone | linked at boot from the stock `modem`/`vendor` partitions, and Ubuntu's `linux-firmware` | Qualcomm proprietary |
 | Wi-Fi calibration (`WCNSS_qcom_wlan_nv.bin`), ADSP, venus | not shipped: `msm-firmware-loader` links them at boot from the phone's own `persist`, `modem` and `vendor` partitions — the NV file is calibrated per phone | — |
 
-The Ubuntu userland the image build installs comes from the Ubuntu 24.04 archive and Mozilla's Firefox APT repository, under their own licences.
+The ALARM userland and the image build installs come from their repository, under their own licenses.
