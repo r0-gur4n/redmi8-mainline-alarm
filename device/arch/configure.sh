@@ -12,7 +12,8 @@ systemctl enable msm-firmware-loader.service
 # the USB control link (systemd-networkd serves DHCP on usb0), and the
 # confirmation that resets the initramfs boot counter.
 systemctl enable olive-gpu.service olive-wifi-noht.service olive-net.service \
-	olive-watch.service olive-autoconfirm.timer systemd-networkd.service
+	olive-watch.service olive-autoconfirm.timer olive-amp.service \
+	systemd-networkd.service
 
 # Suspend never resumes on this port.
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target \
@@ -30,6 +31,12 @@ systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target 
 # would stay unmapped and would not follow Phosh's rotation. The pacman hook
 # in /etc/pacman.d/hooks re-applies this when phoc changes.
 /usr/local/sbin/olive-phoc-simpledrm-output-fix
+
+# Phosh has the same builtin-output test. It only falls back to a raw backlight
+# for a builtin output, so without this it never finds the KTD3137 and hides
+# the brightness slider. The pacman hook in /etc/pacman.d/hooks re-applies this
+# when phosh changes.
+/usr/local/sbin/olive-phosh-simpledrm-output-fix
 
 # Register Firefox, GNOME Settings and the other app launchers, then apply the
 # system dconf defaults (Phosh favourites, shared phone settings).

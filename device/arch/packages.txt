@@ -2,7 +2,7 @@
 # Installed with `pacman -S --needed --noconfirm`; dependencies are resolved
 # by pacman. The base tarball already provides base, systemd, pacman and
 # mkinitcpio. Keep this list to what the phone needs: every megabyte is eMMC.
-# Apps that need unsupported hardware (camera, audio) are deliberately absent.
+# Apps that need unsupported hardware (camera) are deliberately absent.
 
 # system and tools
 sudo
@@ -35,6 +35,9 @@ mesa-utils
 pipewire
 pipewire-pulse
 wireplumber
+alsa-utils
+alsa-ucm-conf
+i2c-tools
 upower
 polkit
 gnome-keyring
@@ -45,7 +48,11 @@ phosh
 phosh-mobile-settings
 gnome-session
 gnome-shell
-squeekboard
+# Stevia is Phosh's on-screen keyboard. Unlike squeekboard it can suppress
+# auto-unfolding for selected apps (mobi.phosh.osk ignore-activation), which
+# keeps the OSK out of Settings and Calculator. It provides
+# phosh-osk-provider and conflicts with squeekboard.
+stevia
 gnome-control-center
 firefox
 gnome-console

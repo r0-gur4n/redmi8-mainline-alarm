@@ -96,8 +96,10 @@ configured from Phosh's settings.
 
 ## Differences you will notice
 
-- The desktop is **Phosh**, not GNOME Shell. Phosh, Phoc, Squeekboard and
-  `phosh-mobile-settings` come from the Arch repositories.
+- The desktop is **Phosh**, not GNOME Shell. Phosh, Phoc, Stevia and
+  `phosh-mobile-settings` come from the Arch repositories. Stevia is the
+  on-screen keyboard; its `ignore-activation` list keeps it from unfolding
+  automatically in GNOME Settings, Calculator, Characters and Mobile Settings.
 - The image ships **Firefox with mobile defaults** instead of Epiphany, plus
   **GNOME Settings** (`gnome-control-center`) and a basic Phosh app set. See
   [Apps, Firefox and Settings](#apps-firefox-and-settings).
@@ -280,6 +282,144 @@ A rotation test with the 720x1520 output at transform 90 (scale 1.742188,
 logical 872.46x413.27) delivered an injected touch at physical `(100,100)` to
 a full-output client at `(814.633,57.359)`, and `(700,20)` at
 `(860.527,401.527)`, matching the transformed output.
+
+## Brightness and the simpledrm output
+
+The KTD3137 is registered as a raw backlight:
+
+```text
+/sys/class/backlight/1-0036
+  type: raw
+  max_brightness: 2047
+  parent: .../7af5000.i2c/i2c-1/1-0036
+```
+
+Phosh's `phosh_monitor_connector_type_from_name()` recognizes the prefixes
+`LVDS-`, `eDP-`, `DSI-`, `HDMI-A-`, and so on, but not `Unknown-`. Its
+`phosh_udev_manager_find_backlight()` only falls back to a raw backlight when
+the output is builtin, and the KTD3137's parent is an I2C device rather than a
+DRM connector. The result is `HasBrightnessControl=false` and no slider in the
+quick-settings panel; `gsd-power` also logs `No backlight` when it tries to
+dim the screen.
+
+The image therefore patches `/usr/lib/phosh/phosh` (0.57.0-2, ALARM aarch64):
+
+* `device/arch/base/usr/local/sbin/olive-phosh-simpledrm-output-fix` patches
+  the two inlined `eDP-` comparisons in
+  `phosh_monitor_connector_type_from_name()`. The compiler turns the
+  `g_str_has_prefix (name, "eDP-")` call into the immediate pair
+  `mov w0, #0x4465; movk w0, #0x2d50, lsl #16` (`0x2d504465`, "eDP-").
+  The script changes both copies to
+  `mov w0, #0x6e55; movk w0, #0x6e6b, lsl #16` (`0x6e6b6e55`, "Unkn") at
+  file offsets `0x126870` and `0x126a4c`. `Unknown-1` is then classified as
+  eDP, which counts as builtin; Phosh finds the raw KTD3137 through its
+  builtin fallback and the brightness slider appears. The same builtin
+  classification is what lets `PhoshLayoutManager` handle the notch. The
+  script is also called from `device/arch/configure.sh`;
+* `/etc/pacman.d/hooks/olive-phosh-simpledrm-output.hook` re-applies the patch
+  after `phosh` is installed or upgraded (a downgrade is an `Upgrade`
+  transaction).
+
+An earlier revision patched only the `.rodata` string `eDP-` at `0x198778`
+(sha256 `747218e9…`). That did not work: the compiler inlined
+`g_str_has_prefix()` into immediate comparisons, and the `.rodata` string is
+only used by the cold path for a NULL name. The script accepts that binary,
+restores the string and applies the real patch, so both the unpatched binary
+(`e5d140cc…`) and the old rodata-only binary produce the same final binary
+(`e6bd350f…`).
+
+The `eDP-` branch is sacrificed; this phone has no eDP output, and `LVDS-`,
+`DSI-`, `HDMI-A-` and the other prefixes still work. If the panel later moves
+to msm's DSI output, `DSI-1` remains recognized.
+
+To verify on the running phone:
+
+```sh
+busctl --user get-property org.gnome.Shell.Brightness \
+  /org/gnome/Shell/Brightness org.gnome.Shell.Brightness HasBrightnessControl
+# b true
+```
+
+Remove `~/.phoshdebug` before this check. `PHOSH_DEBUG=fake-builtin` also
+forces `phosh_udev_manager_find_backlight()` to treat every output as builtin,
+so it can make `HasBrightnessControl` true even when the binary patch is
+ineffective. The property is only meaningful without that debug flag.
+
+The slider in the quick-settings panel should then change
+`/sys/class/backlight/1-0036/brightness`. As with the Phoc patch, the script
+refuses to touch a binary whose checksum it does not know. If ALARM updates
+`phosh`, re-locate the `eDP-` immediate pairs in the new binary, update the
+offsets and checksums, and verify the slider and clock again.
+
+## Top-bar clock and the notch
+
+Phosh 0.57 has no clock-position setting. `PhoshLayoutManager` keeps the clock
+centered unless the built-in display's cutout geometry intersects the central
+clock area; it then moves the clock left or right (`src/layout-manager.c`,
+`get_clock_pos()`). The geometry comes from libgmobile's display-panel data,
+which is compiled into `libgmobile.so` as a GResource.
+
+libgmobile 0.7.4 has no `xiaomi,olive.json`, so Phoc logs `No panel found for
+compatibles` and Phosh has no cutout to avoid. The clock stays centered over the
+Redmi 8's waterdrop notch.
+
+The image adds the Redmi 8 panel description:
+
+* `device/arch/base/usr/share/gmobile/display-panels/xiaomi,olive.json` is
+  based on the Redmi 7 (`xiaomi,onclite`) entry; both panels are 720x1520 with
+  a centered waterdrop notch;
+* `device/arch/base/etc/environment` sets
+  `G_RESOURCE_OVERLAYS=/mobi/phosh/gmobile/devices/display-panels=/usr/share/gmobile/display-panels`.
+  GLib then reads the filesystem JSON when libgmobile asks for the resource, so
+  libgmobile does not have to be rebuilt. The overlay is a fallback: existing
+  panel entries still come from the library.
+
+With the notch data present, `get_clock_pos()` sees the cutout in the center
+clock rectangle and moves the clock to the left or right (whichever clears the
+notch); the top-bar margins are adjusted from the same geometry. The panel
+data alone is not enough: `get_clock_pos()` returns early when
+`self->builtin` is NULL. The simpledrm output must also be classified as
+builtin, which is what the Phosh binary patch above does. Before that patch
+was corrected, the panel loaded but the clock stayed centered because
+`phosh_monitor_connector_type_from_name("Unknown-1")` still returned
+`PHOSH_MONITOR_CONNECTOR_TYPE_Unknown`.
+
+To check it on the running phone:
+
+```sh
+gsettings get sm.puri.phosh shell-layout
+# 'device'
+
+G_RESOURCE_OVERLAYS=/mobi/phosh/gmobile/devices/display-panels=/usr/share/gmobile/display-panels \
+gjs -c '
+const Gm = imports.gi.Gm;
+const panel = Gm.DisplayPanel.new_from_resource(
+  "/mobi/phosh/gmobile/devices/display-panels/xiaomi,olive.json");
+print("panel: " + panel.get_name());
+const cutouts = panel.get_cutouts();
+print("cutouts: " + cutouts.get_n_items());
+for (let i = 0; i < cutouts.get_n_items(); i++) {
+  const c = cutouts.get_item(i);
+  const b = c.get_bounds();
+  print("  " + c.get_name() + ": " + b.x + "," + b.y + " " + b.width + "x" + b.height);
+}
+'
+# panel: Xiaomi Redmi 8
+# cutouts: 1
+#   notch: 308,0 103x55
+```
+
+The clock should now be at the left or right, not centered. The side depends
+on the fractional scale; either clears the notch. If it is still centered,
+check `HasBrightnessControl` without `PHOSH_DEBUG=fake-builtin`; that confirms
+whether Phosh actually has a builtin monitor. If the panel test fails or shows
+zero cutouts, fix the JSON/overlay first.
+
+If the notch shape needs adjusting, edit the JSON; `G_RESOURCE_OVERLAYS` makes
+the change visible after restarting the session. Forcing a specific side
+rather than letting Phosh choose is not a setting in 0.57; that needs a
+Phosh patch (or different cutout geometry), not just panel data. If gmobile
+later ships `xiaomi,olive.json`, remove the overlay and the local JSON.
 
 ## Rootless build (optional)
 

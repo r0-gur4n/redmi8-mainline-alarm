@@ -1,0 +1,58 @@
+#!/bin/sh
+# Program the AW87519 speaker amplifier with the stock aw87519_spk.bin
+# register sequence. Runs once at boot; the codec's LINEOUT path is switched
+# by the UCM "Speaker" device, so the amplifier itself stays configured.
+set -eu
+
+# The i2c-dev bus number is assigned by probe order, so find the blsp1_i2c2
+# adapter by its platform device path (78b6000.i2c).  Note that the adapter's
+# "name" attribute is just "QUP I2C adapter", not the device-tree name.
+modprobe i2c-dev 2>/dev/null || true
+
+bus=
+i=0
+while [ "$i" -lt 300 ]; do
+	for d in /sys/bus/i2c/devices/i2c-*; do
+		[ -e "$d/name" ] || continue
+		case "$(readlink -f "$d")" in
+			*/78b6000.i2c/*) bus=${d##*-}; break ;;
+		esac
+	done
+	[ -n "$bus" ] && break
+	i=$((i + 1))
+	sleep 0.1
+done
+
+if [ -z "$bus" ]; then
+	echo "olive-amp-enable: 78b6000.i2c adapter not found" >&2
+	exit 1
+fi
+
+i=0
+while [ "$i" -lt 100 ]; do
+	[ -e "/dev/i2c-$bus" ] && break
+	i=$((i + 1))
+	sleep 0.1
+done
+
+if [ ! -e "/dev/i2c-$bus" ]; then
+	echo "olive-amp-enable: /dev/i2c-$bus not found" >&2
+	exit 1
+fi
+
+# 69 b7, 69 b7, 01 f0, ... (stock aw87519_spk.bin, with PAGAIN raised
+# from the stock 0x0c = 18 dB to 0x12 = 27 dB for more speaker output)
+for pair in \
+	69:b7 69:b7 01:f0 02:09 03:e8 04:11 05:12 06:4e 07:4e 08:0b \
+	09:08 0a:4b 60:16 61:20 62:01 63:0b 64:c5 65:a4 66:78 67:c4 68:d0
+do
+	i2cset -y "$bus" 0x58 "0x${pair%:*}" "0x${pair#*:}" b
+done
+
+# Make a silent failure visible in the journal.
+sysctl=$(i2cget -y "$bus" 0x58 0x01 b)
+gain=$(i2cget -y "$bus" 0x58 0x05 b)
+if [ "$sysctl" != "0xf0" ] || [ "$gain" != "0x12" ]; then
+	echo "olive-amp-enable: unexpected registers (0x01=$sysctl 0x05=$gain)" >&2
+	exit 1
+fi

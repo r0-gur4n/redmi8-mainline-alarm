@@ -81,10 +81,11 @@ scripts/build/build-modules.sh <tree>
 
 ## 2. Device tree
 
-The boot device tree is checked in: `kernel/devicetree/sdm439-xiaomi-olive.dtb`,
-byte-identical to the one on the reference phone. It is the kernel-built tree
-(`sdm439-xiaomi-olive.kernel-built.dtb`) plus three edits, applied in order
-with Python `fdt`:
+The boot device tree is checked in: `kernel/devicetree/sdm439-xiaomi-olive.dtb`.
+It is the audio-enabled kernel tree (patch step 13) built to
+`sdm439-xiaomi-olive.kernel-built.dtb` and then edited with the three scripts
+below. The `kernel-built.dtb` checked in here is the older pre-audio reference;
+rebuild it from the step-13 tree to replay the full pipeline.
 
 | Script | Does |
 |---|---|

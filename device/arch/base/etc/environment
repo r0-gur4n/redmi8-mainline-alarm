@@ -1,0 +1,7 @@
+# Phosh's libgmobile carries its display-panel data (notch/cutout geometry)
+# as a GResource. There is no xiaomi,olive entry, so Phosh leaves the top-bar
+# clock centered and does not keep it out of the Redmi 8's waterdrop notch.
+# The image ships the panel description in /usr/share/gmobile/display-panels;
+# this GLib overlay makes libgmobile's resource lookup read it from there
+# instead of rebuilding libgmobile. See docs/07-arch.md.
+G_RESOURCE_OVERLAYS=/mobi/phosh/gmobile/devices/display-panels=/usr/share/gmobile/display-panels

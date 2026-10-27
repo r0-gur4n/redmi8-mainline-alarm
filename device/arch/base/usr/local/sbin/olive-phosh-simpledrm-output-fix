@@ -1,0 +1,110 @@
+#!/bin/sh
+# Make Phosh treat the bootloader's simpledrm output as a builtin display.
+#
+# The Adreno 505 is loaded GPU-only (separate_gpu_kms=1), so the panel is
+# driven by the bootloader's simpledrm framebuffer. Phoc calls that output
+# "Unknown-1". Phosh's phosh_monitor_connector_type_from_name() only knows
+# LVDS-, eDP-, DSI-, HDMI-A-, ... so "Unknown-1" is not builtin. That matters
+# for two things:
+#
+#  * brightness: phosh_udev_manager_find_backlight() only falls back to a
+#    "raw" backlight for a builtin output, and the KTD3137 is a raw I2C
+#    backlight (its parent is the i2c device, not a DRM connector). Without
+#    this Phosh reports HasBrightnessControl=false and hides the slider.
+#  * layout: PhoshLayoutManager only avoids the notch when the shell has a
+#    builtin monitor, so the top-bar clock stays centered over the notch.
+#
+# phosh 0.57.0-2 is stripped. Its phosh_monitor_connector_type_from_name()
+# inlines g_str_has_prefix() into immediate comparisons: the eDP- case is the
+# instruction pair
+#
+#     mov  w0, #0x4465
+#     movk w0, #0x2d50, lsl #16
+#
+# (0x2d504465 == "eDP-" in little-endian). The .rodata "eDP-" string at
+# 0x198778 is only used by the cold path for a NULL name, so replacing that
+# string with "Unkn" does NOT make "Unknown-1" classify as eDP. This script
+# patches both copies of the real comparison instead:
+#
+#     mov  w0, #0x6e55
+#     movk w0, #0x6e6b, lsl #16
+#
+# (0x6e6b6e55 == "Unkn" in little-endian). "Unknown-1" then returns eDP,
+# which phosh_monitor_connector_is_builtin() accepts. Phosh finds
+# /sys/class/backlight/1-0036 (KTD3137) through the raw-backlight fallback and
+# also gets a builtin monitor for the notch/clock layout.
+#
+# The eDP- branch is sacrificed; this phone has no eDP output and the other
+# prefixes (LVDS-, DSI-, HDMI-A-, ...) are unchanged. If the panel ever moves
+# to msm's DSI output, "DSI-1" is still recognized.
+#
+# The offsets and checksums are phosh 0.57.0-2 (aarch64, ALARM). The script
+# refuses to patch an unknown binary and fails loudly, so an ALARM update is
+# noticed during the build or the pacman transaction instead of silently
+# losing brightness control. See docs/07-arch.md.
+#
+# An earlier version of this script only changed the .rodata string at
+# 0x198778. That binary (sha256 747218e9...) is accepted and normalized here:
+# the .rodata string is restored to "eDP-" and the real immediates are patched.
+#
+# Run by the image build (device/arch/configure.sh) and by the pacman hook
+# etc/pacman.d/hooks/olive-phosh-simpledrm-output.hook after phosh is
+# installed or upgraded.
+set -eu
+
+PHOSH=${1:-/usr/lib/phosh/phosh}
+OFF1=1206384     # 0x126870, eDP- comparison in the long-name path
+OFF2=1206860     # 0x126a4c, eDP- comparison in the short-name path
+RODATA_OFF=1673080 # 0x198778
+SUM_UNPATCHED=e5d140cc844862cd49515b31f800f86f63f2c1b0f94e9f9e9eec867bc418aecb
+SUM_RODATA_ONLY=747218e9c0f059378c733fb029a58663979495f8a3051cf97370ca99c0f6ab11
+SUM_PATCHED=e6bd350ff5b661f211cba4a2ef2960e93440fdfb7ef4a10951093a29ea8705ec
+
+if [ ! -f "$PHOSH" ]; then
+	echo "olive-phosh-simpledrm-output-fix: $PHOSH is not installed" >&2
+	exit 1
+fi
+
+sum=$(sha256sum "$PHOSH" | cut -d' ' -f1)
+case $sum in
+	"$SUM_PATCHED")
+		exit 0
+		;;
+	"$SUM_UNPATCHED"|"$SUM_RODATA_ONLY")
+		;;
+	*)
+		echo "olive-phosh-simpledrm-output-fix: unknown $PHOSH (sha256 $sum)." >&2
+		echo "phosh changed: re-check the simpledrm builtin-output patch (docs/07-arch.md)." >&2
+		exit 1
+		;;
+esac
+
+# Phosh may be running (pacman update in a live session), and writing to a
+# mapped executable fails with ETXTBSY. Patch a copy in the same directory and
+# rename it over the original; the running process keeps the old inode.
+tmp="$PHOSH.new.$$"
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+cp -a "$PHOSH" "$tmp"
+
+# Normalize the old, ineffective .rodata-only patch. Restoring the string keeps
+# the result deterministic for both accepted input checksums.
+if [ "$(dd if="$tmp" bs=1 skip="$RODATA_OFF" count=5 status=none | od -An -tx1 | tr -d ' \n')" = 556e6b6e00 ]; then
+	printf '\145\104\120\055\000' | dd of="$tmp" bs=1 seek="$RODATA_OFF" conv=notrunc status=none
+fi
+
+for off in "$OFF1" "$OFF2"; do
+	if [ "$(dd if="$tmp" bs=1 skip="$off" count=8 status=none | od -An -tx1 | tr -d ' \n')" != a08c885200aaa572 ]; then
+		echo "olive-phosh-simpledrm-output-fix: unexpected bytes at $off" >&2
+		exit 1
+	fi
+	printf '\240\312\215\122\140\315\255\162' | dd of="$tmp" bs=1 seek="$off" conv=notrunc status=none
+done
+
+if [ "$(sha256sum "$tmp" | cut -d' ' -f1)" != "$SUM_PATCHED" ]; then
+	echo "olive-phosh-simpledrm-output-fix: patched binary has an unexpected checksum" >&2
+	exit 1
+fi
+
+mv -f "$tmp" "$PHOSH"
+trap - EXIT HUP INT TERM
