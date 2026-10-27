@@ -1,6 +1,16 @@
 # Arch Linux ARM on the Xiaomi Redmi 8 (experimental project)
 
-Readme will be missing for a bit. Don't clone it right now, for the time it's the same Ubuntu port.
+**WARNING:** Both the original project and the fork were made with assist of AI and come without any warranty. Do it at your own risk.
+
+Here be dragons.
+
+
+---
+## Credits
+
+SheroAbi https://github.com/SheroAbi for the original Ubuntu port
+DeepSeek for assisting in this project
+Linus Torvalds for Linux kernel
 
 ---
 
@@ -9,7 +19,3 @@ Readme will be missing for a bit. Don't clone it right now, for the time it's th
 GPL-2.0-only for drivers, patches and device trees, see [LICENSE](LICENSE).
 Firmware and reference files keep their own terms, listed in
 [THIRD-PARTY.md](THIRD-PARTY.md).
-
-This is a hobby project and comes without any warranty. Flashing a phone can
-go wrong; you do it at your own risk. Questions, fixes and reports from other
-units are very welcome.
