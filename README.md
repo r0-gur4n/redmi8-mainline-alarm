@@ -9,7 +9,9 @@ Here be dragons.
 ## Credits
 
 SheroAbi https://github.com/SheroAbi for the original Ubuntu port
+
 DeepSeek for assisting in this project
+
 Linus Torvalds for Linux kernel
 
 ---
