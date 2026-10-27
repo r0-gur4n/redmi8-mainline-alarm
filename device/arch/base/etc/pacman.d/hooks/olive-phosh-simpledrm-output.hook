@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = phosh
+
+[Action]
+Description = Treating Phosh's simpledrm output as builtin for brightness and layout...
+When = PostTransaction
+Exec = /usr/local/sbin/olive-phosh-simpledrm-output-fix

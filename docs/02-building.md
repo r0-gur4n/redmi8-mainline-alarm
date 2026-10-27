@@ -18,6 +18,11 @@ sudo image/build-image.sh          # Ubuntu, initramfs, boot partition, lk2nd
 
 Built artefacts land in `dist/` (kernel staging in `~/redmi8-build`), which git ignores.
 
+> The Arch Linux ARM + Phosh variant (`sudo image/arch/build-image.sh`) uses
+> the same kernel, DTB, drivers and lk2nd; only the root filesystem (ALARM
+> tarball + pacman) and the initramfs (mkinitcpio) differ. See
+> [07-arch.md](07-arch.md).
+
 ## Build host
 
 Ubuntu 24.04 (a VM or WSL2 works). The kernel is built with clang
@@ -76,10 +81,11 @@ scripts/build/build-modules.sh <tree>
 
 ## 2. Device tree
 
-The boot device tree is checked in: `kernel/devicetree/sdm439-xiaomi-olive.dtb`,
-byte-identical to the one on the reference phone. It is the kernel-built tree
-(`sdm439-xiaomi-olive.kernel-built.dtb`) plus three edits, applied in order
-with Python `fdt`:
+The boot device tree is checked in: `kernel/devicetree/sdm439-xiaomi-olive.dtb`.
+It is the audio-enabled kernel tree (patch step 13) built to
+`sdm439-xiaomi-olive.kernel-built.dtb` and then edited with the three scripts
+below. The `kernel-built.dtb` checked in here is the older pre-audio reference;
+rebuild it from the step-13 tree to replay the full pipeline.
 
 | Script | Does |
 |---|---|
@@ -121,9 +127,13 @@ sudo image/build-image.sh
    `pmOS_root`), as an Android sparse image with explicit zero-fill chunks.
    Fresh filesystem UUIDs for every build.
 5. **lk2nd** (`image/build-lk2nd.sh`).
+6. **DTBO** (`firmware/dtbo/dtbo-xiaomi-olive.img`): the minimal device-tree
+   overlay the stock bootloader needs to accept lk2nd; without it the phone
+   shows the Mi bunny instead of booting.
 
 It asks for the password of the user it creates; user name, time zone,
 locale, keyboard and an SSH key are environment variables (see
 `image/common/README.md`). Nothing optional is installed; see `extras/`.
 
-Output in `dist/image/`: `userdata.img`, `lk2nd.img`, `SHA256SUMS`.
+Output in `dist/image/`: `dtbo.img`, `userdata.img`, `lk2nd.img`,
+`SHA256SUMS`.

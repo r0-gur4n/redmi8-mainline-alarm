@@ -18,16 +18,33 @@ LK2ND_REPO=https://github.com/msm8916-mainline/lk2nd
 LK2ND_COMMIT=8b46487c4c76776c4f2f61468d44a74c69e6b9ea
 TARGET=lk2nd-msm8952
 
-for t in git make python3 dtc arm-none-eabi-gcc; do
+for t in git make python3 dtc curl; do
 	command -v "$t" >/dev/null || { echo "missing host tool: $t" >&2; exit 1; }
 done
+TOOLCHAIN_PREFIX=${TOOLCHAIN_PREFIX:-arm-none-eabi-}
+command -v "${TOOLCHAIN_PREFIX}gcc" >/dev/null ||
+	{ echo "missing cross compiler: ${TOOLCHAIN_PREFIX}gcc" >&2; exit 1; }
 
 rm -rf "$WORK/lk2nd"
 mkdir -p "$WORK" "$OUT"
-git init -q "$WORK/lk2nd"
-git -C "$WORK/lk2nd" fetch -q --depth 1 "$LK2ND_REPO" "$LK2ND_COMMIT"
-git -C "$WORK/lk2nd" checkout -q FETCH_HEAD
+if [ -n "${LK2ND_TARBALL:-}" ]; then
+	mkdir -p "$WORK/lk2nd"
+	tar -xzf "$LK2ND_TARBALL" -C "$WORK/lk2nd" --strip-components=1
+else
+	git init -q "$WORK/lk2nd"
+	if ! git -C "$WORK/lk2nd" fetch -q --depth 1 "$LK2ND_REPO" "$LK2ND_COMMIT"; then
+		# The git endpoint is blocked on some networks; codeload serves the
+		# same commit as a tarball.
+		rm -rf "$WORK/lk2nd"
+		mkdir -p "$WORK/lk2nd"
+		curl -fL --retry 3 \
+			"https://codeload.github.com/msm8916-mainline/lk2nd/tar.gz/$LK2ND_COMMIT" \
+			-o "$WORK/lk2nd.tar.gz"
+		tar -xzf "$WORK/lk2nd.tar.gz" -C "$WORK/lk2nd" --strip-components=1
+	fi
+	git -C "$WORK/lk2nd" checkout -q FETCH_HEAD 2>/dev/null || true
+fi
 
-make -C "$WORK/lk2nd" TOOLCHAIN_PREFIX=arm-none-eabi- "$TARGET" -j"$(nproc)"
+make -C "$WORK/lk2nd" TOOLCHAIN_PREFIX="$TOOLCHAIN_PREFIX" "$TARGET" -j"$(nproc)"
 install -m 644 "$WORK/lk2nd/build-$TARGET/lk2nd.img" "$OUT/lk2nd.img"
 ls -l "$OUT/lk2nd.img"

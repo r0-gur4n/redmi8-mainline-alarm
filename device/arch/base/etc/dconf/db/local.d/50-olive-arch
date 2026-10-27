@@ -1,0 +1,13 @@
+[sm/puri/phosh]
+favorites=['firefox.desktop', 'org.gnome.Settings.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Console.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Calculator.desktop']
+
+[org/gnome/shell]
+favorite-apps=['firefox.desktop', 'org.gnome.Settings.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Console.desktop', 'org.gnome.TextEditor.desktop', 'org.gnome.Calculator.desktop']
+
+# Do not unfold the on-screen keyboard just because one of these apps focuses a
+# text field. Settings, Characters and Mobile Settings focus search entries on
+# startup and Calculator's display is a text entry; all made the OSK appear
+# without the user asking for it. The keyboard can still be unfolded manually
+# from the home-bar pill.
+[mobi/phosh/osk]
+ignore-activation=['org.gnome.Calculator', 'org.gnome.Settings', 'org.gnome.Characters', 'mobi.phosh.MobileSettings']

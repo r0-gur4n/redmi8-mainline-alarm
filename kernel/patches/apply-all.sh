@@ -6,7 +6,7 @@
 # <kernel-tree> is msm89x7-mainline/linux, tag v7.1.3-r1, e.g.
 #   git clone --depth 1 --branch v7.1.3-r1 https://github.com/msm89x7-mainline/linux
 #
-# Order: 00, 0001, then steps 01-10; finally the shipped config becomes
+# Order: 00, 0001, then steps 01-13; finally the shipped config becomes
 # .config. Each Python step asserts on the text it edits, so a wrong or
 # already-patched tree stops the run instead of half-applying.
 set -euo pipefail

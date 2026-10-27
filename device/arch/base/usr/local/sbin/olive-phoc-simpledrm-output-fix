@@ -1,0 +1,79 @@
+#!/bin/sh
+# Make Phoc treat the bootloader's simpledrm output as a builtin display.
+#
+# The Adreno 505 is loaded GPU-only (separate_gpu_kms=1), so the panel is
+# driven by the bootloader's simpledrm framebuffer. That output is named
+# "Unknown-1", not one of the DSI-/eDP-/LVDS-/DPI- names that
+# phoc_output_is_builtin() recognizes. Phoc then has no builtin output:
+#
+#   * seat_set_device_output_mappings() maps a touchscreen only to a builtin
+#     output, so the Ilitek panel stays unmapped; and
+#   * wlroots applies an output transform to a touch device only when it has
+#     a mapped output.
+#
+# Phosh rotates the output with the accelerometer, but the touch coordinates
+# stay in the panel's portrait frame, so in landscape the touch no longer
+# tracks the display. Phoc also ignores touch while the output is disabled.
+#
+# phoc 0.57.0-2 is LTO-built; the two instructions at 0x4e234 build the inline
+# "eDP-" prefix in phoc_output_is_builtin():
+#
+#   52888ca0  mov  w0, #0x4465              ; "eD"
+#   72a5aa00  movk w0, #0x2d50, lsl #16     ; "P-"
+#
+# Replace them with "Unkn". simpledrm's output is "Unknown-1", so it is
+# treated as builtin and its touch device is mapped and transformed with it.
+# The eDP- branch is sacrificed; this phone has no eDP output and the other
+# prefixes (LVDS-, DSI-, DPI-) are unchanged. Phoc then logs
+#
+#   No panel found for compatibles
+#   gm_display_panel_get_name: assertion 'GM_IS_DISPLAY_PANEL (self)' failed
+#
+# because it looks for GMobile panel data for the now-builtin output. There is
+# none for this device tree; the output still works and Phosh continues.
+#
+# The offset and checksums are phoc 0.57.0-2 (aarch64, ALARM). The script
+# refuses to patch an unknown binary and fails loudly, so an ALARM update is
+# noticed during the build or the pacman transaction instead of silently
+# breaking touch. See docs/07-arch.md.
+#
+# Run by the image build (device/arch/configure.sh) and by the pacman hook
+# etc/pacman.d/hooks/olive-phoc-simpledrm-output.hook after phoc is installed
+# or upgraded.
+set -eu
+
+PHOC=/usr/bin/phoc
+OFFSET=320052 # 0x4e234
+SUM_UNPATCHED=2696800279f7526f6d9b0d897677db316730adb583464e281e57595cfd9a1ced
+SUM_PATCHED=5c2f2bbe4301ba8391902da3a18bd78a9d12017a220a3235f78a29ba93ce7aff
+
+if [ ! -f "$PHOC" ]; then
+	echo "olive-phoc-simpledrm-output-fix: $PHOC is not installed" >&2
+	exit 1
+fi
+
+sum=$(sha256sum "$PHOC" | cut -d' ' -f1)
+case $sum in
+	"$SUM_PATCHED")
+		exit 0
+		;;
+	"$SUM_UNPATCHED")
+		;;
+	*)
+		echo "olive-phoc-simpledrm-output-fix: unknown $PHOC (sha256 $sum)." >&2
+		echo "phoc changed: re-check the simpledrm builtin-output patch (docs/07-arch.md)." >&2
+		exit 1
+		;;
+esac
+
+if [ "$(dd if="$PHOC" bs=1 skip="$OFFSET" count=8 status=none | od -An -tx1 | tr -d ' \n')" != a08c885200aaa572 ]; then
+	echo "olive-phoc-simpledrm-output-fix: unexpected code at $OFFSET" >&2
+	exit 1
+fi
+
+printf '\240\312\215\122\140\315\255\162' | dd of="$PHOC" bs=1 seek="$OFFSET" conv=notrunc status=none
+
+if [ "$(sha256sum "$PHOC" | cut -d' ' -f1)" != "$SUM_PATCHED" ]; then
+	echo "olive-phoc-simpledrm-output-fix: patched binary has an unexpected checksum" >&2
+	exit 1
+fi

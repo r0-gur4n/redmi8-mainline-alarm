@@ -26,6 +26,9 @@ instead of half-applying. Each takes the kernel tree as its only argument.
 | `08-fix-dsi-phy-range.py` | `dsi_12nm_sync_phy_range()`: signal range follows the final divider |
 | `09-fix-gpll3-width.py` | GPLL3 `.width = 4` in `gcc-msm8917.c` — GPU at 450 MHz, not 700 |
 | `10-gpu-zap-a505.py` | A505 skips zap *resume* (it reset the SoC); DT `zap-shader`, `gpu_zap_mem`, ramoops |
+| `11-wcd-lineout.py` | PM8953 LINEOUT path (`RX3 → LINEOUT DAC → LINE_OUT → LINEOUT PA`) for the AW87519 speaker amp |
+| `12-wcd-mbhc-buttons.py` | MBHC: release button bits on removal and ignore non-BTN0 during accessory detection — stops a stuck `KEY_VOLUMEDOWN` |
+| `13-dts-audio.py` | PM8953 analog codec node, QDSP6 sound card/DAI links/PDM pinctrl, board sound routing, PMIC USID1 compatible override, AW87519 reset + amp node |
 
 `sdm439-12nm/` holds the reference sources step 03 ports from. The in-tree
 touch driver (steps 02–07) waits for a DSI panel; the running system uses the

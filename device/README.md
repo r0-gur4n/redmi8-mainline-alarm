@@ -8,7 +8,8 @@ installs `packages.txt` and runs `configure.sh` inside it.
 | File | Purpose |
 |---|---|
 | `base/etc/initramfs-tools/` | the initramfs hooks: USB rescue shell, the userdata disk image as a loop device, the boot counter |
-| `base/etc/systemd/system/olive-gpu.service`, `base/usr/local/bin/olive-gpu` | load msm GPU-only, then enable Mesa `kmsro` for the session |
+| `base/etc/systemd/system/olive-gpu.service`, `base/usr/local/bin/olive-gpu` | load msm GPU-only, then enable Mesa `kmsro` for the session (Ubuntu image) |
+| `arch/base/usr/local/bin/olive-gpu` | the Arch variant: load msm GPU-only and leave the driver choice to Mesa, so clients stay on `msm` |
 | `base/etc/systemd/system/olive-wifi-noht.service`, `base/usr/local/sbin/olive-wifi-noht` | Wi-Fi without 802.11n (TX aggregation loses frames) |
 | `base/etc/systemd/system/olive-autoconfirm.{timer,service}`, `base/usr/local/bin/olive-confirm-boot` | reset the initramfs boot counter 90 s after a boot |
 | `base/etc/systemd/system/olive-net.service`, `olive-watch.service`, `base/usr/local/bin/olive-{net,watch}` | keep the USB link and SSH up |
@@ -21,5 +22,10 @@ installs `packages.txt` and runs `configure.sh` inside it.
 | `base/etc/systemd/system.conf.d/90-olive-watchdog.conf`, `base/etc/sysctl.d/90-olive-debug.conf` | watchdog 20 s/30 s, panic on hung task / soft lockup, reboot after 10 s |
 | `base/etc/udev/rules.d/90-olive-hide-android.rules` | Android partitions not shown in Files |
 | `base/etc/dconf/db/local.d/50-olive` | GNOME: power button does nothing, no automatic sleep |
+| `arch/packages.txt`, `arch/configure.sh` | the Arch Linux ARM package set and the same hardware enablement for the Phosh image |
+| `arch/base/etc/initcpio/` | `mkinitcpio` hook `olive`: USB rescue shell, the userdata disk image as a loop device, the boot counter |
+| `arch/base/etc/mkinitcpio.conf` | minimal initramfs for the Arch image (no autodetect) |
 
-Optional features live in [`../extras/`](../extras/).
+`image/arch/build-image.sh` uses `arch/` instead of `base/`'s
+`initramfs-tools` layer; the systemd units and hardware scripts in `base/` are
+shared by both images. Optional features live in [`../extras/`](../extras/).

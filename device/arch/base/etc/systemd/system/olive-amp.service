@@ -1,0 +1,12 @@
+[Unit]
+Description=Program the AW87519 speaker amplifier
+After=systemd-modules-load.service
+Before=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/olive-amp-enable
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

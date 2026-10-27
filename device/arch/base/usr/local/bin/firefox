@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run Firefox on Wayland with touch input. The Firefox desktop file invokes
+# "/usr/local/bin/firefox" and PATH puts this wrapper before /usr/bin, so the
+# launcher, links and the default-browser handler all use it.
+#
+# The panel is 720x1520 and Firefox starts at a desktop-sized window that
+# Phoc leaves clipped. Pass a portrait size; Phoc's auto-maximize then sizes
+# the window for the current display orientation.
+export MOZ_ENABLE_WAYLAND=1
+export MOZ_USE_XINPUT2=1
+export GDK_BACKEND=wayland
+exec /usr/bin/firefox --width 720 --height 1480 "$@"

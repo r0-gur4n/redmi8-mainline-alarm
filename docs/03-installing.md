@@ -10,7 +10,7 @@
    KTD3137 backlight), see [01-hardware.md](01-hardware.md). Other units boot
    to the desktop but without touch and brightness control.
 5. The images from [02-building.md](02-building.md) in `dist/image/`:
-   `userdata.img`, `lk2nd.img`, `SHA256SUMS`.
+   `dtbo.img`, `userdata.img`, `lk2nd.img`, `SHA256SUMS`.
 
 ## Flashing
 
@@ -25,30 +25,35 @@ python scripts/flash/flash.py --flash --reboot
 
 It checks the images against `SHA256SUMS` and the sparse structure, that the
 device is an unlocked `olive` in stock fastboot (`kernel=lk`), the battery,
-and that both images fit. Then:
+and that every image fits its partition. Then:
 
 | Partition | Image | What it is |
 |---|---|---|
-| `userdata` | `dist/image/userdata.img` | the whole Ubuntu system: a disk image with `/boot` and `/` |
+| `dtbo` | `dist/image/dtbo.img` | minimal device-tree overlay: with the stock DTBO the bootloader refuses to boot lk2nd and shows the Mi bunny |
+| `userdata` | `dist/image/userdata.img` | the whole system: a disk image with `/boot` and `/` |
 | `boot` | `dist/image/lk2nd.img` | lk2nd, which boots `extlinux.conf` from that disk image |
 
 **Flashing userdata replaces all Android user data.**
 
 Nothing else on the phone is written. If a write fails the script stops with
-the phone still in fastboot; run it again.
+the phone still in fastboot; run it again. Stock Android needs the original
+`dtbo` (and `boot`) back, so keep a stock ROM around if you want to return.
 
 ## First boot
 
-* lk2nd shows its menu for 2 s, then starts `ubuntu`.
+> This page describes the Ubuntu image. The Arch Linux ARM image boots the
+> same way and logs into Phosh instead; see [07-arch.md](07-arch.md).
+
+* lk2nd shows its menu for 2 s, then starts the `ubuntu` (or `arch`) entry.
 * The root partition and filesystem grow to the whole `userdata` partition
   (~50 GB) and the phone creates its own SSH host keys.
-* GDM logs your user in, GNOME on Wayland. The user and password are the ones
-  you gave the image build; root is locked (use `sudo`), and root can never
-  log in over SSH.
+* GDM logs your user in: GNOME on Wayland for the Ubuntu image, Phosh for the
+  Arch image. The user and password are the ones you gave the image build;
+  root is locked (use `sudo`), and root can never log in over SSH.
 * Over USB the phone is `172.16.43.1` and gives the PC an address by DHCP
   (`172.16.43.1xx`, no gateway, so the PC's internet is not affected):
   `ssh <user>@172.16.43.1`.
-* Wi-Fi: from the GNOME menu.
+* Wi-Fi: from the GNOME menu (Ubuntu) or the Phosh settings (Arch).
 
 ## What the image adds for this phone
 
@@ -59,7 +64,7 @@ only what the hardware needs (`device/base/`, enabled by `device/configure.sh`):
 |---|---|
 | the kernel modules and the three own drivers | touch, backlight, battery/charger |
 | `firmware/`, `linux-firmware`, `msm-firmware-loader` | GPU zap shader, touch firmware, GPU microcode; Wi-Fi/ADSP/video firmware linked from the phone's own partitions |
-| `olive-gpu` + service | loads msm GPU-only, then enables Mesa `kmsro` for the session |
+| `olive-gpu` + service | loads msm GPU-only; the Ubuntu image also forces Mesa `kmsro` for the session |
 | `olive-wifi-noht` + service | Wi-Fi without 802.11n TX aggregation (see [04-drivers.md](04-drivers.md)) |
 | `olive-net`, `olive-watch`, `20-usb.network` | the USB network (systemd-networkd serves DHCP on `usb0`) |
 | `olive-confirm-boot`, `olive-autoconfirm.timer` | resets the initramfs boot counter 90 s into a healthy boot |
@@ -87,6 +92,7 @@ The notch-aware top bar and the phone look of GNOME are optional:
 
 | What you see | What it means | What to do |
 |---|---|---|
+| Mi bunny / Mi recovery after the Xiaomi logo | `dtbo` is the stock one, so the bootloader rejected lk2nd | flash `dist/image/dtbo.img` |
 | Xiaomi logo, then back to fastboot / lk2nd | `boot` or `userdata` wrong | flash again |
 | Boot text, then black, USB network up | kernel is fine, userspace hung | `telnet 169.254.66.1` (rescue shell in the initramfs; Windows needs a few minutes for its own 169.254.x address there, the DHCP server only runs in Ubuntu), or wait: after 3 unconfirmed boots the initramfs stops before userspace and keeps the rescue shell |
 | Desktop but no touch/brightness | other panel/backlight variant | see [01-hardware.md](01-hardware.md) |
